@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { subscribePdfGenerationLock } from "@/lib/pdfGenerationLock";
 import type { Usuario } from "@/lib/types";
 
 const NAV = [
@@ -24,12 +25,30 @@ const NAV = [
   { href: "/pagos", label: "Pagos", Icon: CreditCard },
 ];
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({
+  onNavigate,
+  locked,
+}: {
+  onNavigate?: () => void;
+  locked: boolean;
+}) {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1 px-3">
       {NAV.map(({ href, label, Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
+        if (locked) {
+          return (
+            <span
+              key={href}
+              title="Hay un PDF generándose — esperá a que termine para navegar"
+              className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-cream/30"
+            >
+              <Icon className="size-4.5" />
+              {label}
+            </span>
+          );
+        }
         return (
           <Link
             key={href}
@@ -66,13 +85,19 @@ function Brand() {
 export default function PanelShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<Usuario | null>(null);
+  const [locked, setLocked] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     api<Usuario>("me").then(setUser).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    return subscribePdfGenerationLock(setLocked);
+  }, []);
+
   async function logout() {
+    if (locked) return;
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
@@ -87,7 +112,7 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
       {/* Sidebar escritorio */}
       <aside className="hidden md:flex md:flex-col bg-charcoal">
         <Brand />
-        <NavLinks />
+        <NavLinks locked={locked} />
       </aside>
 
       {/* Drawer móvil */}
@@ -108,7 +133,7 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
                 <X className="size-5" />
               </button>
             </div>
-            <NavLinks onNavigate={() => setOpen(false)} />
+            <NavLinks onNavigate={() => setOpen(false)} locked={locked} />
           </aside>
         </div>
       )}
@@ -126,6 +151,11 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
             Lusso Travel
           </p>
           <div className="ml-auto flex items-center gap-3">
+            {locked && (
+              <span className="hidden text-xs text-amber-600 sm:inline">
+                Generando PDF…
+              </span>
+            )}
             {displayName && (
               <span className="hidden text-sm text-charcoal/70 sm:inline">
                 {displayName}
@@ -133,7 +163,8 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
             )}
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 rounded-lg border border-charcoal/15 px-3 py-1.5 text-sm text-charcoal/80 transition-colors hover:bg-charcoal hover:text-cream"
+              disabled={locked}
+              className="flex items-center gap-1.5 rounded-lg border border-charcoal/15 px-3 py-1.5 text-sm text-charcoal/80 transition-colors hover:bg-charcoal hover:text-cream disabled:opacity-40"
             >
               <LogOut className="size-4" />
               Salir

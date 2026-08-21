@@ -11,11 +11,8 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
-  PauseCircle,
-  PlayCircle,
   Quote,
   StickyNote,
-  UserRound,
   Users,
   Wallet,
 } from "lucide-react";
@@ -27,8 +24,8 @@ import {
   formatTime,
   waLink,
 } from "@/lib/format";
-import type { Estado, LeadDetalle, Mensaje } from "@/lib/types";
-import { ESTADOS, EstadoBadge, OrigenBadge } from "@/components/badges";
+import type { LeadDetalle, Mensaje } from "@/lib/types";
+import { OrigenBadge } from "@/components/badges";
 
 function FichaItem({
   Icon,
@@ -99,11 +96,6 @@ function Burbuja({ mensaje }: { mensaje: Mensaje }) {
   );
 }
 
-function AsesorNombre(asesor: LeadDetalle["asesor"]): string {
-  if (!asesor) return "Sin asignar";
-  return [asesor.first_name, asesor.last_name].filter(Boolean).join(" ") || asesor.username;
-}
-
 interface DetailProps {
   lead: LeadDetalle;
   saving: boolean;
@@ -111,45 +103,25 @@ interface DetailProps {
 }
 
 /** Tarjeta simple y centrada compartida por leads de popup y contacto */
-function SimpleDetail({ lead, saving, onPatch, showContacto }: DetailProps & { showContacto: boolean }) {
+function SimpleDetail({ lead, showContacto }: DetailProps & { showContacto: boolean }) {
   return (
     <div className="mx-auto mt-6 max-w-xl rounded-xl border border-charcoal/10 bg-white p-6 shadow-sm sm:p-8">
       <h1 className="font-display text-2xl font-semibold">{lead.nombre}</h1>
       <p className="mt-1 text-sm text-charcoal/60">{lead.contacto}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <OrigenBadge origen={lead.origen} />
-        <EstadoBadge estado={lead.estado} />
       </div>
 
       <div className="mt-6 space-y-5 border-t border-charcoal/10 pt-6">
-        <div>
-          <label className="block text-xs uppercase tracking-wide text-charcoal/50" htmlFor="estado">
-            Estado
-          </label>
-          <select
-            id="estado"
-            value={lead.estado}
-            disabled={saving}
-            onChange={(e) => onPatch({ estado: e.target.value as Estado })}
-            className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel disabled:opacity-60"
+        {showContacto && (
+          <Link
+            href={`/cotizaciones/nueva?lead=${lead.id}`}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-charcoal px-3 py-2 text-sm font-semibold text-cream transition hover:bg-charcoal/90"
           >
-            {Object.entries(ESTADOS).map(([value, cfg]) => (
-              <option key={value} value={value}>
-                {cfg.label}
-              </option>
-            ))}
-          </select>
-
-          {showContacto && (
-            <Link
-              href={`/cotizaciones/nueva?lead=${lead.id}`}
-              className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-charcoal px-3 py-2 text-sm font-semibold text-cream transition hover:bg-charcoal/90"
-            >
-              <FileText className="size-4" />
-              Armar cotización
-            </Link>
-          )}
-        </div>
+            <FileText className="size-4" />
+            Armar cotización
+          </Link>
+        )}
 
         {showContacto && (
           <>
@@ -168,9 +140,6 @@ function SimpleDetail({ lead, saving, onPatch, showContacto }: DetailProps & { s
           </>
         )}
 
-        <FichaItem Icon={UserRound} label="Asesor">
-          {AsesorNombre(lead.asesor)}
-        </FichaItem>
         <FichaItem Icon={CalendarRange} label="Creado">
           {formatDateTime(lead.created_at)}
         </FichaItem>
@@ -179,20 +148,11 @@ function SimpleDetail({ lead, saving, onPatch, showContacto }: DetailProps & { s
   );
 }
 
-function WhatsappDetail({ lead, saving, onPatch }: DetailProps) {
+function WhatsappDetail({ lead }: DetailProps) {
   const botPausado = useMemo(() => {
     if (!lead.bot_pausado_hasta) return false;
     return new Date(lead.bot_pausado_hasta).getTime() > Date.now();
   }, [lead.bot_pausado_hasta]);
-
-  function toggleBotPausa() {
-    if (botPausado) {
-      onPatch({ bot_pausado_hasta: null });
-    } else {
-      const hasta = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-      onPatch({ bot_pausado_hasta: hasta });
-    }
-  }
 
   const dv = lead.datos_viaje ?? {};
   const wa = waLink(lead.telefono);
@@ -209,7 +169,6 @@ function WhatsappDetail({ lead, saving, onPatch }: DetailProps) {
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <OrigenBadge origen={lead.origen} />
-            <EstadoBadge estado={lead.estado} />
             <span className="text-xs text-charcoal/50">
               Creado el {formatDateTime(lead.created_at)}
             </span>
@@ -217,19 +176,6 @@ function WhatsappDetail({ lead, saving, onPatch }: DetailProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={lead.estado}
-            disabled={saving}
-            onChange={(e) => onPatch({ estado: e.target.value as Estado })}
-            className="rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel disabled:opacity-60"
-          >
-            {Object.entries(ESTADOS).map(([value, cfg]) => (
-              <option key={value} value={value}>
-                {cfg.label}
-              </option>
-            ))}
-          </select>
-
           <Link
             href={`/cotizaciones/nueva?lead=${lead.id}`}
             className="flex items-center gap-1.5 rounded-lg bg-charcoal px-3 py-2 text-sm font-semibold text-cream transition hover:bg-charcoal/90"
@@ -249,25 +195,6 @@ function WhatsappDetail({ lead, saving, onPatch }: DetailProps) {
               WhatsApp
             </a>
           )}
-
-          <button
-            onClick={toggleBotPausa}
-            disabled={saving}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:opacity-60 ${
-              botPausado
-                ? "bg-sage text-charcoal hover:bg-sage/80"
-                : "border border-charcoal/15 bg-white text-charcoal/80 hover:bg-charcoal/5"
-            }`}
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : botPausado ? (
-              <PlayCircle className="size-4" />
-            ) : (
-              <PauseCircle className="size-4" />
-            )}
-            {botPausado ? "Reactivar bot" : "Pausar bot 48 h"}
-          </button>
         </div>
       </div>
 
@@ -298,14 +225,9 @@ function WhatsappDetail({ lead, saving, onPatch }: DetailProps) {
             <span className="whitespace-pre-wrap">{dv.notas || "—"}</span>
           </FichaItem>
           <div className="border-t border-charcoal/10 pt-4">
-            <FichaItem Icon={UserRound} label="Asesor">
-              {AsesorNombre(lead.asesor)}
+            <FichaItem Icon={Bot} label="Bot">
+              {lead.bot_activo ? (botPausado ? "Activo (en pausa)" : "Activo") : "Desactivado"}
             </FichaItem>
-            <div className="mt-4">
-              <FichaItem Icon={Bot} label="Bot">
-                {lead.bot_activo ? (botPausado ? "Activo (en pausa)" : "Activo") : "Desactivado"}
-              </FichaItem>
-            </div>
           </div>
         </div>
 

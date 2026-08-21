@@ -81,7 +81,7 @@ export default function HotelesPage() {
             <Link
               key={h.id}
               href={`/hoteles/${h.id}`}
-              className="flex items-center gap-3 rounded-xl border border-charcoal/10 bg-white p-3 shadow-sm transition hover:bg-steel/10"
+              className="flex min-w-0 items-center gap-3 rounded-xl border border-charcoal/10 bg-white p-3 shadow-sm transition hover:bg-steel/10"
             >
               {h.imagen_1 ? (
                 // eslint-disable-next-line @next/next/no-img-element

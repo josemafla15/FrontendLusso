@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { ArrowLeft, Check, ExternalLink, FileDown, Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { setPdfGenerationLock } from "@/lib/pdfGenerationLock";
 import CotizacionForm, {
   valuesFromCotizacion,
   buildPayload,
@@ -45,6 +45,59 @@ export default function CotizacionDetallePage() {
       if (pollTimer.current) clearTimeout(pollTimer.current);
     };
   }, [load]);
+
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (generandoPdf) {
+        e.preventDefault();
+        // Algunos navegadores requieren esto para mostrar el diálogo nativo
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [generandoPdf]);
+
+  useEffect(() => {
+    setPdfGenerationLock(generandoPdf);
+    return () => setPdfGenerationLock(false);
+  }, [generandoPdf]);
+
+  useEffect(() => {
+    if (!generandoPdf) return;
+
+    // Empuja una entrada "trampa" al historial: el primer "atrás" del
+    // usuario cae acá en vez de sacarlo de la página.
+    window.history.pushState(null, "", window.location.href);
+
+    function onPopState() {
+      const salir = confirm(
+        "El PDF se está generando. Si salís ahora, podés perder el progreso. ¿Salir igual?"
+      );
+      if (salir) {
+        // Confirmó: se saca la protección y se deja completar la
+        // navegación de atrás real (una vez, sin volver a interceptar).
+        window.removeEventListener("popstate", onPopState);
+        window.history.back();
+      } else {
+        // Canceló: se vuelve a armar la trampa para el próximo intento.
+        window.history.pushState(null, "", window.location.href);
+      }
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [generandoPdf]);
+
+  function irACotizaciones() {
+    if (
+      generandoPdf &&
+      !confirm("El PDF se está generando. Si salís ahora, podés perder el progreso. ¿Salir igual?")
+    ) {
+      return;
+    }
+    router.push("/cotizaciones");
+  }
 
   async function handleSubmit(formValues: ReturnType<typeof valuesFromCotizacion>) {
     setSaving(true);
@@ -102,9 +155,12 @@ export default function CotizacionDetallePage() {
   if (error && !cotizacion) {
     return (
       <div>
-        <Link href="/cotizaciones" className="inline-flex items-center gap-1 text-sm text-charcoal/60 hover:text-charcoal">
+        <button
+          onClick={irACotizaciones}
+          className="inline-flex items-center gap-1 text-sm text-charcoal/60 hover:text-charcoal"
+        >
           <ArrowLeft className="size-4" /> Volver a cotizaciones
-        </Link>
+        </button>
         <p className="mt-6 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
           {error}
         </p>
@@ -123,9 +179,12 @@ export default function CotizacionDetallePage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/cotizaciones" className="inline-flex items-center gap-1 text-sm text-charcoal/60 hover:text-charcoal">
+        <button
+          onClick={irACotizaciones}
+          className="inline-flex items-center gap-1 text-sm text-charcoal/60 hover:text-charcoal"
+        >
           <ArrowLeft className="size-4" /> Volver a cotizaciones
-        </Link>
+        </button>
 
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
@@ -152,7 +211,7 @@ export default function CotizacionDetallePage() {
 
           {generandoPdf && (
             <p className="text-xs text-charcoal/50">
-              Puede tardar hasta 30 segundos, no cierres esta página.
+              Puede tardar hasta 1 minuto, no cierres esta página.
             </p>
           )}
 

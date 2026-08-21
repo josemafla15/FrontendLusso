@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatRelative, truncate } from "@/lib/format";
-import type { Estado, Lead, Origen, Paginado, RolMensaje } from "@/lib/types";
-import { ESTADOS, EstadoBadge, ORIGENES } from "@/components/badges";
+import type { Lead, Origen, Paginado, RolMensaje } from "@/lib/types";
+import { ORIGENES } from "@/components/badges";
 
 const TABS: Origen[] = ["popup", "contacto", "whatsapp"];
 const DEFAULT_TAB: Origen = "popup";
@@ -64,7 +64,6 @@ function LeadsPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [estado, setEstado] = useState<Estado | "">("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -73,7 +72,6 @@ function LeadsPageInner() {
   // Cada pestaña arranca con sus propios filtros
   function changeTab(tab: Origen) {
     if (tab === activeTab) return;
-    setEstado("");
     setSearch("");
     setDebouncedSearch("");
     setPage(1);
@@ -86,7 +84,6 @@ function LeadsPageInner() {
     const params = new URLSearchParams();
     params.set("origen", activeTab);
     params.set("page", String(page));
-    if (estado) params.set("estado", estado);
     if (debouncedSearch) params.set("search", debouncedSearch);
     try {
       const res = await api<Paginado<Lead>>(`leads?${params.toString()}`);
@@ -96,7 +93,7 @@ function LeadsPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page, estado, debouncedSearch]);
+  }, [activeTab, page, debouncedSearch]);
 
   useEffect(() => {
     load();
@@ -164,21 +161,6 @@ function LeadsPageInner() {
             className="w-full rounded-lg border border-charcoal/15 bg-white py-2 pl-9 pr-3 text-sm outline-none transition focus:border-steel focus:ring-2 focus:ring-steel/40"
           />
         </div>
-        <select
-          value={estado}
-          onChange={(e) => {
-            setPage(1);
-            setEstado(e.target.value as Estado | "");
-          }}
-          className="rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-        >
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([value, cfg]) => (
-            <option key={value} value={value}>
-              {cfg.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {error && (
@@ -250,61 +232,42 @@ function PopupTable({ leads, loading, onSelect }: TableProps) {
             <tr className="border-b border-charcoal/10 text-xs uppercase tracking-wide text-charcoal/50">
               <th className="px-4 py-3 font-semibold">Lead</th>
               <th className="px-4 py-3 font-semibold">Contacto</th>
-              <th className="px-4 py-3 font-semibold">Estado</th>
               <th className="px-4 py-3 font-semibold">Creado</th>
             </tr>
           </thead>
           <tbody>
-            {leads.map((lead) => {
-              const prioritario = lead.estado === "calificado";
-              return (
-                <tr
-                  key={lead.id}
-                  onClick={() => onSelect(lead.id)}
-                  className={`cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10 ${
-                    prioritario ? "border-l-4 border-l-sage bg-sage/15" : ""
-                  }`}
-                >
-                  <td className="px-4 py-3 text-sm font-semibold">{lead.nombre}</td>
-                  <td className="px-4 py-3 text-sm text-charcoal/80">{lead.contacto}</td>
-                  <td className="px-4 py-3">
-                    <EstadoBadge estado={lead.estado} />
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
-                    {formatRelative(lead.created_at)}
-                  </td>
-                </tr>
-              );
-            })}
+            {leads.map((lead) => (
+              <tr
+                key={lead.id}
+                onClick={() => onSelect(lead.id)}
+                className="cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10"
+              >
+                <td className="px-4 py-3 text-sm font-semibold">{lead.nombre}</td>
+                <td className="px-4 py-3 text-sm text-charcoal/80">{lead.contacto}</td>
+                <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
+                  {formatRelative(lead.created_at)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
         {leads.length === 0 && <EmptyState loading={loading} />}
       </div>
 
       <div className={`mt-4 space-y-3 md:hidden ${loading ? "opacity-60" : ""}`}>
-        {leads.map((lead) => {
-          const prioritario = lead.estado === "calificado";
-          return (
-            <button
-              key={lead.id}
-              onClick={() => onSelect(lead.id)}
-              className={`block w-full rounded-xl border bg-white p-4 text-left shadow-sm transition active:scale-[0.99] ${
-                prioritario ? "border-sage border-l-4 bg-sage/15" : "border-charcoal/10"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{lead.nombre}</p>
-                  <p className="truncate text-xs text-charcoal/50">{lead.contacto}</p>
-                </div>
-                <EstadoBadge estado={lead.estado} />
-              </div>
-              <p className="mt-2 text-xs text-charcoal/60">
-                {formatRelative(lead.created_at)}
-              </p>
-            </button>
-          );
-        })}
+        {leads.map((lead) => (
+          <button
+            key={lead.id}
+            onClick={() => onSelect(lead.id)}
+            className="block w-full rounded-xl border border-charcoal/10 bg-white p-4 text-left shadow-sm transition active:scale-[0.99]"
+          >
+            <p className="truncate text-sm font-semibold">{lead.nombre}</p>
+            <p className="truncate text-xs text-charcoal/50">{lead.contacto}</p>
+            <p className="mt-2 text-xs text-charcoal/60">
+              {formatRelative(lead.created_at)}
+            </p>
+          </button>
+        ))}
         {leads.length === 0 && (
           <p className="rounded-xl border border-charcoal/10 bg-white px-4 py-10 text-center text-sm text-charcoal/50">
             {!loading && "No hay leads con estos filtros."}
@@ -328,75 +291,56 @@ function ContactoTable({ leads, loading, onSelect }: TableProps) {
               <th className="px-4 py-3 font-semibold">Contacto</th>
               <th className="px-4 py-3 font-semibold">Destino de interés</th>
               <th className="px-4 py-3 font-semibold">Mensaje</th>
-              <th className="px-4 py-3 font-semibold">Estado</th>
               <th className="px-4 py-3 font-semibold">Creado</th>
             </tr>
           </thead>
           <tbody>
-            {leads.map((lead) => {
-              const prioritario = lead.estado === "calificado";
-              return (
-                <tr
-                  key={lead.id}
-                  onClick={() => onSelect(lead.id)}
-                  className={`cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10 ${
-                    prioritario ? "border-l-4 border-l-sage bg-sage/15" : ""
-                  }`}
-                >
-                  <td className="px-4 py-3 text-sm font-semibold">{lead.nombre}</td>
-                  <td className="px-4 py-3 text-sm text-charcoal/80">{lead.contacto}</td>
-                  <td className="px-4 py-3 text-sm text-charcoal/80">
-                    {lead.destino_interes || "—"}
-                  </td>
-                  <td className="max-w-64 px-4 py-3 text-sm text-charcoal/70">
-                    {truncate(lead.mensaje, 60) || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <EstadoBadge estado={lead.estado} />
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
-                    {formatRelative(lead.created_at)}
-                  </td>
-                </tr>
-              );
-            })}
+            {leads.map((lead) => (
+              <tr
+                key={lead.id}
+                onClick={() => onSelect(lead.id)}
+                className="cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10"
+              >
+                <td className="px-4 py-3 text-sm font-semibold">{lead.nombre}</td>
+                <td className="px-4 py-3 text-sm text-charcoal/80">{lead.contacto}</td>
+                <td className="px-4 py-3 text-sm text-charcoal/80">
+                  {lead.destino_interes || "—"}
+                </td>
+                <td className="max-w-64 px-4 py-3 text-sm text-charcoal/70">
+                  {truncate(lead.mensaje, 60) || "—"}
+                </td>
+                <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
+                  {formatRelative(lead.created_at)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
         {leads.length === 0 && <EmptyState loading={loading} />}
       </div>
 
       <div className={`mt-4 space-y-3 md:hidden ${loading ? "opacity-60" : ""}`}>
-        {leads.map((lead) => {
-          const prioritario = lead.estado === "calificado";
-          return (
-            <button
-              key={lead.id}
-              onClick={() => onSelect(lead.id)}
-              className={`block w-full rounded-xl border bg-white p-4 text-left shadow-sm transition active:scale-[0.99] ${
-                prioritario ? "border-sage border-l-4 bg-sage/15" : "border-charcoal/10"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{lead.nombre}</p>
-                  <p className="truncate text-xs text-charcoal/50">{lead.contacto}</p>
-                </div>
-                <EstadoBadge estado={lead.estado} />
-              </div>
-              {lead.destino_interes && (
-                <p className="mt-2 text-xs text-charcoal/60">{lead.destino_interes}</p>
-              )}
-              {lead.mensaje && (
-                <p className="mt-2 truncate text-sm text-charcoal/70">
-                  {truncate(lead.mensaje, 60)}
-                </p>
-              )}
-              <p className="mt-2 text-xs text-charcoal/50">
-                {formatRelative(lead.created_at)}
+        {leads.map((lead) => (
+          <button
+            key={lead.id}
+            onClick={() => onSelect(lead.id)}
+            className="block w-full rounded-xl border border-charcoal/10 bg-white p-4 text-left shadow-sm transition active:scale-[0.99]"
+          >
+            <p className="truncate text-sm font-semibold">{lead.nombre}</p>
+            <p className="truncate text-xs text-charcoal/50">{lead.contacto}</p>
+            {lead.destino_interes && (
+              <p className="mt-2 text-xs text-charcoal/60">{lead.destino_interes}</p>
+            )}
+            {lead.mensaje && (
+              <p className="mt-2 truncate text-sm text-charcoal/70">
+                {truncate(lead.mensaje, 60)}
               </p>
-            </button>
-          );
-        })}
+            )}
+            <p className="mt-2 text-xs text-charcoal/50">
+              {formatRelative(lead.created_at)}
+            </p>
+          </button>
+        ))}
         {leads.length === 0 && (
           <p className="rounded-xl border border-charcoal/10 bg-white px-4 py-10 text-center text-sm text-charcoal/50">
             {!loading && "No hay leads con estos filtros."}
@@ -418,80 +362,65 @@ function WhatsappTable({ leads, loading, onSelect }: TableProps) {
             <tr className="border-b border-charcoal/10 text-xs uppercase tracking-wide text-charcoal/50">
               <th className="px-4 py-3 font-semibold">Lead</th>
               <th className="px-4 py-3 font-semibold">Teléfono</th>
-              <th className="px-4 py-3 font-semibold">Estado</th>
               <th className="px-4 py-3 font-semibold">Destino</th>
               <th className="px-4 py-3 font-semibold">Último mensaje</th>
               <th className="px-4 py-3 font-semibold">Creado</th>
             </tr>
           </thead>
           <tbody>
-            {leads.map((lead) => {
-              const prioritario = lead.estado === "calificado";
-              return (
-                <tr
-                  key={lead.id}
-                  onClick={() => onSelect(lead.id)}
-                  className={`cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10 ${
-                    prioritario ? "border-l-4 border-l-sage bg-sage/15" : ""
-                  }`}
-                >
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-semibold">{lead.nombre}</p>
-                    <p className="text-xs text-charcoal/50">{lead.contacto}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/80">
-                    {lead.telefono || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <EstadoBadge estado={lead.estado} />
-                  </td>
-                  <td className="px-4 py-3 text-sm text-charcoal/80">
-                    {lead.datos_viaje?.destino || "—"}
-                  </td>
-                  <td className="max-w-64 px-4 py-3">
-                    <UltimoMensajeCell lead={lead} />
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
-                    {formatRelative(lead.created_at)}
-                  </td>
-                </tr>
-              );
-            })}
+            {leads.map((lead) => (
+              <tr
+                key={lead.id}
+                onClick={() => onSelect(lead.id)}
+                className="cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10"
+              >
+                <td className="px-4 py-3">
+                  <p className="text-sm font-semibold">{lead.nombre}</p>
+                  <p className="text-xs text-charcoal/50">{lead.contacto}</p>
+                </td>
+                <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/80">
+                  {lead.telefono || "—"}
+                </td>
+                <td className="px-4 py-3 text-sm text-charcoal/80">
+                  {lead.datos_viaje?.destino || "—"}
+                </td>
+                <td className="max-w-64 px-4 py-3">
+                  <UltimoMensajeCell lead={lead} />
+                </td>
+                <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
+                  {formatRelative(lead.created_at)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
         {leads.length === 0 && <EmptyState loading={loading} />}
       </div>
 
       <div className={`mt-4 space-y-3 md:hidden ${loading ? "opacity-60" : ""}`}>
-        {leads.map((lead) => {
-          const prioritario = lead.estado === "calificado";
-          return (
-            <button
-              key={lead.id}
-              onClick={() => onSelect(lead.id)}
-              className={`block w-full rounded-xl border bg-white p-4 text-left shadow-sm transition active:scale-[0.99] ${
-                prioritario ? "border-sage border-l-4 bg-sage/15" : "border-charcoal/10"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{lead.nombre}</p>
-                  <p className="truncate text-xs text-charcoal/50">
-                    {lead.telefono || lead.contacto}
-                  </p>
-                </div>
-                <EstadoBadge estado={lead.estado} />
+        {leads.map((lead) => (
+          <button
+            key={lead.id}
+            onClick={() => onSelect(lead.id)}
+            className="block w-full rounded-xl border border-charcoal/10 bg-white p-4 text-left shadow-sm transition active:scale-[0.99]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{lead.nombre}</p>
+                <p className="truncate text-xs text-charcoal/50">
+                  {lead.telefono || lead.contacto}
+                </p>
               </div>
-              <div className="mt-2 flex items-center gap-2 text-xs text-charcoal/60">
-                {lead.datos_viaje?.destino && <span>{lead.datos_viaje.destino}</span>}
-                <span className="ml-auto">{formatRelative(lead.created_at)}</span>
-              </div>
-              <div className="mt-3 border-t border-charcoal/5 pt-2">
-                <UltimoMensajeCell lead={lead} />
-              </div>
-            </button>
-          );
-        })}
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-xs text-charcoal/60">
+              {lead.datos_viaje?.destino && <span>{lead.datos_viaje.destino}</span>}
+              <span className="ml-auto">{formatRelative(lead.created_at)}</span>
+            </div>
+            <div className="mt-3 border-t border-charcoal/5 pt-2">
+              <UltimoMensajeCell lead={lead} />
+            </div>
+          </button>
+        ))}
         {leads.length === 0 && (
           <p className="rounded-xl border border-charcoal/10 bg-white px-4 py-10 text-center text-sm text-charcoal/50">
             {!loading && "No hay leads con estos filtros."}
