@@ -122,7 +122,9 @@ export interface HotelPartner {
   direccion: string;
   descripcion: string;
   activo: boolean;
-  imagenes: string[];
+  imagen_1: string;
+  imagen_2: string;
+  imagen_3: string;
 }
 
 export interface CotizacionHotel {
@@ -136,6 +138,7 @@ export interface CotizacionHotel {
   precios: string[];
   orden: number;
   nombre_display?: string;
+  _key?: string;   // <-- NUEVO: solo para React (key estable), nunca se manda al backend
 }
 
 export interface Vuelo {
@@ -155,8 +158,9 @@ export interface Vuelo {
 
 export interface Cotizacion {
   id: string;
-  lead: string;
-  lead_nombre: string;
+  lead: string | null;      
+  lead_nombre: string | null;
+  nombre_cliente: string;
   asesor: Usuario;
   destino: string;
   fecha_inicio: string | null;
@@ -167,6 +171,7 @@ export interface Cotizacion {
   precio_total: number | string | null;
   precio_por_persona: number | string | null;
   precio_nota_total: string;
+  inversion_lineas: string[];   // <-- NUEVO
   vigencia: string | null;
   version: number;
   estado: string;

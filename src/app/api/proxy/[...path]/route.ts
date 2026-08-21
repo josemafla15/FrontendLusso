@@ -8,6 +8,12 @@ import {
 } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ path: string[] }> };
+type Tokens = { access: string; refresh?: string };
+
+// Single-flight: si varios requests disparan un refresh casi al mismo tiempo,
+// todos esperan esta misma promesa en vez de rotar el refresh token cada uno
+// por su cuenta (lo cual invalida el token de los que llegan después).
+let refreshInFlight: Promise<Tokens | null> | null = null;
 
 async function callBackend(
   req: NextRequest,
@@ -27,7 +33,7 @@ async function callBackend(
   });
 }
 
-async function refreshTokens(refresh: string) {
+async function doRefresh(refresh: string): Promise<Tokens | null> {
   const res = await fetch(`${API_URL}/auth/refresh/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,7 +41,24 @@ async function refreshTokens(refresh: string) {
     cache: "no-store",
   });
   if (!res.ok) return null;
-  return (await res.json()) as { access: string; refresh?: string };
+  return (await res.json()) as Tokens;
+}
+
+/**
+ * Envuelve doRefresh en single-flight: si ya hay un refresh en curso
+ * (disparado por otro request concurrente), reutiliza esa misma promesa
+ * en vez de llamar a /api/auth/refresh/ de nuevo con un refresh token
+ * que puede haber quedado rotado por el primero en llegar.
+ */
+function refreshTokensSingleFlight(refresh: string): Promise<Tokens | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh(refresh).finally(() => {
+      // Se libera apenas termina (éxito o falla), para que el próximo
+      // 401 real (más adelante, con un token distinto) dispare su propio refresh.
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 async function buildResponse(
@@ -68,7 +91,6 @@ async function handler(req: NextRequest, ctx: Ctx) {
     body = undefined;
     contentType = null;
   } else if (isMultipart) {
-    // Se conservan los bytes tal cual (incluye el boundary) -- no tocar como texto
     body = await req.arrayBuffer();
     contentType = incomingContentType;
   } else {
@@ -99,7 +121,7 @@ async function handler(req: NextRequest, ctx: Ctx) {
     return res;
   }
 
-  const tokens = await refreshTokens(refresh);
+  const tokens = await refreshTokensSingleFlight(refresh);
   if (!tokens) {
     const res = NextResponse.json({ detail: "Sesión expirada" }, { status: 401 });
     clearAuthCookies(res);

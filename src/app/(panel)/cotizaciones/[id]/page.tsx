@@ -12,7 +12,7 @@ import CotizacionForm, {
 import type { Cotizacion } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 2500;
-const POLL_TIMEOUT_MS = 60_000;
+const POLL_TIMEOUT_MS = 90_000;
 
 export default function CotizacionDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +31,7 @@ export default function CotizacionDetallePage() {
     try {
       const c = await api<Cotizacion>(`cotizaciones/${id}`);
       setCotizacion(c);
-      setNombreArchivo((prev) => prev || `${c.lead_nombre} - ${c.destino}`);
+      setNombreArchivo((prev) => prev || `${c.nombre_cliente || c.lead_nombre} - ${c.destino}`);
       return c;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar la cotización");
@@ -175,7 +175,9 @@ export default function CotizacionDetallePage() {
         </div>
       </div>
 
-      <h1 className="mt-3 font-display text-3xl font-semibold">{cotizacion.lead_nombre}</h1>
+      <h1 className="mt-3 font-display text-3xl font-semibold">
+        {cotizacion.nombre_cliente || cotizacion.lead_nombre}
+      </h1>
       <p className="text-sm text-charcoal/60">
         {cotizacion.destino} · v{cotizacion.version} · {cotizacion.estado}
       </p>

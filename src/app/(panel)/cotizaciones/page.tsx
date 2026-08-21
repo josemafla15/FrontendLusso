@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2, Plus, Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatDate, formatMoney, truncate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import type { Cotizacion, Paginado } from "@/lib/types";
 
 export default function CotizacionesPage() {
@@ -15,7 +15,8 @@ export default function CotizacionesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [estado, setEstado] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [page, setPage] = useState(1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -24,8 +25,9 @@ export default function CotizacionesPage() {
     setError(null);
     const params = new URLSearchParams();
     params.set("page", String(page));
-    if (estado) params.set("estado", estado);
     if (debouncedSearch) params.set("search", debouncedSearch);
+    if (fechaDesde) params.set("fecha_desde", fechaDesde);
+    if (fechaHasta) params.set("fecha_hasta", fechaHasta);
     try {
       const res = await api<Paginado<Cotizacion>>(`cotizaciones?${params.toString()}`);
       setData(res);
@@ -34,7 +36,7 @@ export default function CotizacionesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, estado, debouncedSearch]);
+  }, [page, debouncedSearch, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     load();
@@ -47,6 +49,16 @@ export default function CotizacionesPage() {
       setPage(1);
       setDebouncedSearch(value.trim());
     }, 400);
+  }
+
+  function onFechaDesdeChange(value: string) {
+    setPage(1);
+    setFechaDesde(value);
+  }
+
+  function onFechaHastaChange(value: string) {
+    setPage(1);
+    setFechaHasta(value);
   }
 
   const cotizaciones = data?.results ?? [];
@@ -71,7 +83,7 @@ export default function CotizacionesPage() {
         </Link>
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-charcoal/40" />
           <input
@@ -81,16 +93,36 @@ export default function CotizacionesPage() {
             className="w-full rounded-lg border border-charcoal/15 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-steel focus:ring-2 focus:ring-steel/40"
           />
         </div>
-        <select
-          value={estado}
-          onChange={(e) => {
-            setPage(1);
-            setEstado(e.target.value);
-          }}
-          className="rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-        >
-          <option value="">Todos los estados</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <label className="text-xs uppercase tracking-wide text-charcoal/50">Desde</label>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => onFechaDesdeChange(e.target.value)}
+            className="rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs uppercase tracking-wide text-charcoal/50">Hasta</label>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => onFechaHastaChange(e.target.value)}
+            className="rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+          />
+        </div>
+        {(fechaDesde || fechaHasta) && (
+          <button
+            onClick={() => {
+              setPage(1);
+              setFechaDesde("");
+              setFechaHasta("");
+            }}
+            className="text-xs text-charcoal/50 underline hover:text-charcoal"
+          >
+            Limpiar fechas
+          </button>
+        )}
       </div>
 
       {error && (
@@ -115,10 +147,7 @@ export default function CotizacionesPage() {
                 <tr className="border-b border-charcoal/10 text-xs uppercase tracking-wide text-charcoal/50">
                   <th className="px-4 py-3 font-semibold">Cliente</th>
                   <th className="px-4 py-3 font-semibold">Destino</th>
-                  <th className="px-4 py-3 font-semibold">Fechas</th>
-                  <th className="px-4 py-3 font-semibold">Precio</th>
-                  <th className="px-4 py-3 font-semibold">Estado</th>
-                  <th className="px-4 py-3 font-semibold">Actualizado</th>
+                  <th className="px-4 py-3 font-semibold">Fecha</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,15 +157,10 @@ export default function CotizacionesPage() {
                     onClick={() => router.push(`/cotizaciones/${c.id}`)}
                     className="cursor-pointer border-b border-charcoal/5 transition-colors last:border-0 hover:bg-steel/10"
                   >
-                    <td className="px-4 py-3 text-sm font-semibold">{c.lead_nombre}</td>
+                    <td className="px-4 py-3 text-sm font-semibold">
+                      {c.nombre_cliente || c.lead_nombre}
+                    </td>
                     <td className="px-4 py-3 text-sm text-charcoal/80">{c.destino}</td>
-                    <td className="px-4 py-3 text-sm text-charcoal/70">
-                      {c.fecha_inicio ? formatDate(c.fecha_inicio) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-charcoal/70">
-                      {c.precio_total ? formatMoney(c.precio_total) : c.precio_nota_total ? truncate(c.precio_nota_total, 30) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-charcoal/70">{c.estado}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap text-charcoal/60">
                       {formatDate(c.updated_at)}
                     </td>
@@ -158,10 +182,9 @@ export default function CotizacionesPage() {
                 onClick={() => router.push(`/cotizaciones/${c.id}`)}
                 className="block w-full rounded-xl border border-charcoal/10 bg-white p-4 text-left shadow-sm transition active:scale-[0.99]"
               >
-                <p className="text-sm font-semibold">{c.lead_nombre}</p>
-                <p className="text-xs text-charcoal/50">{c.destino}</p>
+                <p className="text-sm font-semibold">{c.nombre_cliente || c.lead_nombre}</p>
                 <div className="mt-2 flex items-center justify-between text-xs text-charcoal/60">
-                  <span>{c.estado}</span>
+                  <span>{c.destino}</span>
                   <span>{formatDate(c.updated_at)}</span>
                 </div>
               </button>

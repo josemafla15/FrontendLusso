@@ -1,9 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { api, uploadImagen } from "@/lib/api";
-import { formatMilesInput, parseMilesInput } from "@/lib/format";
+import Modal from "@/components/catalogo/Modal";
+import DestinoForm, {
+  emptyDestinoValues,
+  type DestinoFormValues,
+} from "@/components/catalogo/DestinoForm";
+import HotelForm, {
+  emptyHotelValues,
+  type HotelFormValues,
+} from "@/components/catalogo/HotelForm";
 import type {
   Cotizacion,
   CotizacionHotel,
@@ -14,34 +22,28 @@ import type {
 } from "@/lib/types";
 
 export interface CotizacionFormValues {
+  nombre_cliente: string;
   destino: string;
   fecha_inicio: string;
   fecha_fin: string;
   num_personas: number;
   incluye: string[];
   no_incluye: string[];
-  precio_total: string;
-  precio_por_persona: string;
-  precio_nota_total: string;
-  vigencia: string;
-  notas: string;
+  inversion_lineas: string[];
   hoteles: CotizacionHotel[];
   vuelos: Vuelo[];
 }
 
 function emptyValues(): CotizacionFormValues {
   return {
+    nombre_cliente: "",
     destino: "",
     fecha_inicio: "",
     fecha_fin: "",
     num_personas: 1,
     incluye: [],
     no_incluye: [],
-    precio_total: "",
-    precio_por_persona: "",
-    precio_nota_total: "",
-    vigencia: "",
-    notas: "",
+    inversion_lineas: [],
     hoteles: [],
     vuelos: [],
   };
@@ -49,17 +51,14 @@ function emptyValues(): CotizacionFormValues {
 
 export function valuesFromCotizacion(c: Cotizacion): CotizacionFormValues {
   return {
+    nombre_cliente: c.nombre_cliente ?? "",
     destino: c.destino ?? "",
     fecha_inicio: c.fecha_inicio ?? "",
     fecha_fin: c.fecha_fin ?? "",
     num_personas: c.num_personas ?? 1,
     incluye: c.incluye ?? [],
     no_incluye: c.no_incluye ?? [],
-    precio_total: c.precio_total != null ? String(c.precio_total) : "",
-    precio_por_persona: c.precio_por_persona != null ? String(c.precio_por_persona) : "",
-    precio_nota_total: c.precio_nota_total ?? "",
-    vigencia: c.vigencia ?? "",
-    notas: c.notas ?? "",
+    inversion_lineas: c.inversion_lineas ?? [],
     hoteles: c.hoteles ?? [],
     vuelos: c.vuelos ?? [],
   };
@@ -69,22 +68,24 @@ export function valuesFromCotizacion(c: Cotizacion): CotizacionFormValues {
 export function buildPayload(v: CotizacionFormValues) {
   const multiplesHoteles = v.hoteles.length >= 2;
   return {
+    nombre_cliente: v.nombre_cliente,
     destino: v.destino,
     fecha_inicio: v.fecha_inicio || null,
     fecha_fin: v.fecha_fin || null,
     num_personas: v.num_personas,
     incluye: v.incluye,
     no_incluye: v.no_incluye,
-    vigencia: v.vigencia || null,
-    notas: v.notas,
-    precio_total: v.hoteles.length <= 1 ? (parseMilesInput(v.precio_total) || null) : null,
-    precio_por_persona:
-      v.hoteles.length <= 1 ? (parseMilesInput(v.precio_por_persona) || null) : null,
-    precio_nota_total: v.hoteles.length <= 1 ? v.precio_nota_total : "",
+    inversion_lineas: v.hoteles.length <= 1 ? v.inversion_lineas : [],
     hoteles: v.hoteles.map((h, i) => ({
-      ...h,
+      hotel: h.hotel,
+      nombre_libre: h.nombre_libre,
+      noches: h.noches,
+      tipo_habitacion: h.tipo_habitacion,
+      plan_alimentacion: h.plan_alimentacion,
+      datos_importantes: h.datos_importantes,
       precios: multiplesHoteles ? h.precios : [],
       orden: i,
+      ...(h.id ? { id: h.id } : {}),
     })),
     vuelos: v.vuelos.map((vu, i) => ({ ...vu, orden: i })),
   };
@@ -154,28 +155,30 @@ function TagList({
   );
 }
 
-/* ---------- Sección: Destino ---------- */
+/* ---------- Sección: Destino (texto libre, con sugerencias del catálogo) ---------- */
 
 function DestinoField({
   value,
-  onSelect,
+  onChangeText,
+  onSelectCatalogo,
+  onCrearNuevo,
 }: {
   value: string;
-  onSelect: (destino: DestinoContenido) => void;
+  onChangeText: (texto: string) => void;
+  onSelectCatalogo: (destino: DestinoContenido) => void;
+  onCrearNuevo: () => void;
 }) {
-  const [query, setQuery] = useState(value);
   const [results, setResults] = useState<DestinoContenido[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => setQuery(value), [value]);
-
   function onChange(v: string) {
-    setQuery(v);
+    onChangeText(v);
     if (timer.current) clearTimeout(timer.current);
     if (!v.trim()) {
       setResults([]);
+      setOpen(false);
       return;
     }
     timer.current = setTimeout(async () => {
@@ -196,29 +199,45 @@ function DestinoField({
 
   return (
     <div className="relative">
-      <label className="block text-xs uppercase tracking-wide text-charcoal/50">Destino</label>
-      <div className="relative mt-1.5">
-        <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-charcoal/40" />
-        <input
-          value={query}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="Buscar destino en el catálogo…"
-          className="w-full rounded-lg border border-charcoal/15 bg-white py-2 pl-9 pr-8 text-sm outline-none focus:border-steel"
-        />
-        {loading && (
-          <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-charcoal/40" />
-        )}
+      <div className="flex items-center justify-between">
+        <label className="block text-xs uppercase tracking-wide text-charcoal/50">
+          Destino (opcional)
+        </label>
+        <button
+          type="button"
+          onClick={onCrearNuevo}
+          className="text-xs font-semibold text-steel hover:underline"
+        >
+          + Crear destino nuevo
+        </button>
       </div>
+      <div className="relative mt-1.5">
+  <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-charcoal/40" />
+  <input
+    value={value}
+    onChange={(e) => onChange(e.target.value.slice(0, 25))}
+    onFocus={() => results.length > 0 && setOpen(true)}
+    onBlur={() => setTimeout(() => setOpen(false), 150)}
+    maxLength={25}
+    placeholder="Escribí o buscá un destino del catálogo…"
+    className="w-full rounded-lg border border-charcoal/15 bg-white py-2 pl-9 pr-8 text-sm outline-none focus:border-steel"
+  />
+  {loading && (
+    <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-charcoal/40" />
+  )}
+</div>
+<p className={`mt-1 text-right text-xs ${value.length >= 22 ? "text-amber-600" : "text-charcoal/40"}`}>
+  {value.length}/25
+</p>
       {open && results.length > 0 && (
         <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-charcoal/10 bg-white shadow-lg">
           {results.map((d) => (
             <button
               key={d.id}
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onSelect(d);
-                setQuery(d.nombre);
+                onSelectCatalogo(d);
                 setOpen(false);
               }}
               className="block w-full px-3 py-2 text-left text-sm hover:bg-steel/10"
@@ -228,6 +247,9 @@ function DestinoField({
           ))}
         </div>
       )}
+      <p className="mt-1.5 text-xs text-charcoal/40">
+        Si el destino no está en el catálogo, el PDF no incluirá esas páginas.
+      </p>
     </div>
   );
 }
@@ -238,10 +260,12 @@ function HotelesEditor({
   destinoId,
   hoteles,
   onChange,
+  onCrearNuevo,
 }: {
   destinoId: number | null;
   hoteles: CotizacionHotel[];
   onChange: (hoteles: CotizacionHotel[]) => void;
+  onCrearNuevo: () => void;
 }) {
   const [catalogo, setCatalogo] = useState<HotelPartner[]>([]);
 
@@ -256,6 +280,7 @@ function HotelesEditor({
   }, [destinoId]);
 
   const multiples = hoteles.length >= 2;
+  const disponibles = catalogo.filter((h) => !hoteles.some((added) => added.hotel === h.id));
 
   function agregarDelCatalogo(h: HotelPartner) {
     onChange([
@@ -270,22 +295,7 @@ function HotelesEditor({
         precios: [],
         orden: hoteles.length,
         nombre_display: h.nombre,
-      },
-    ]);
-  }
-
-  function agregarLibre() {
-    onChange([
-      ...hoteles,
-      {
-        hotel: null,
-        nombre_libre: "",
-        noches: 1,
-        tipo_habitacion: "",
-        plan_alimentacion: "",
-        datos_importantes: [],
-        precios: [],
-        orden: hoteles.length,
+        _key: crypto.randomUUID(),
       },
     ]);
   }
@@ -301,46 +311,43 @@ function HotelesEditor({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        {catalogo
-          .filter((h) => !hoteles.some((added) => added.hotel === h.id))
-          .map((h) => (
-            <button
-              key={h.id}
-              type="button"
-              onClick={() => agregarDelCatalogo(h)}
-              className="flex items-center gap-1.5 rounded-lg border border-charcoal/15 bg-white px-3 py-1.5 text-sm hover:bg-sage/15"
-            >
-              <Plus className="size-3.5" />
+        <select
+          value=""
+          onChange={(e) => {
+            const id = Number(e.target.value);
+            const h = disponibles.find((x) => x.id === id);
+            if (h) agregarDelCatalogo(h);
+          }}
+          disabled={!destinoId || disponibles.length === 0}
+          className="rounded-lg border border-charcoal/15 bg-white px-3 py-1.5 text-sm outline-none focus:border-steel disabled:opacity-50"
+        >
+          <option value="">
+            {!destinoId
+              ? "Elegí un destino para ver hoteles del catálogo"
+              : disponibles.length === 0
+                ? "Sin hoteles disponibles en este destino"
+                : "+ Agregar hotel del catálogo"}
+          </option>
+          {disponibles.map((h) => (
+            <option key={h.id} value={h.id}>
               {h.nombre}
-            </button>
+            </option>
           ))}
+        </select>
         <button
           type="button"
-          onClick={agregarLibre}
-          className="flex items-center gap-1.5 rounded-lg border border-dashed border-charcoal/25 px-3 py-1.5 text-sm text-charcoal/60 hover:bg-charcoal/5"
+          onClick={onCrearNuevo}
+          className="text-xs font-semibold text-steel hover:underline"
         >
-          <Plus className="size-3.5" />
-          Hotel fuera de catálogo
+          + Crear hotel nuevo en el catálogo
         </button>
-        {!destinoId && (
-          <p className="text-xs text-charcoal/40">Elegí un destino para ver hoteles del catálogo.</p>
-        )}
       </div>
 
       <div className="mt-4 space-y-4">
         {hoteles.map((h, i) => (
-          <div key={i} className="rounded-xl border border-charcoal/10 bg-white p-4">
+          <div key={h._key ?? h.id ?? i} className="rounded-xl border border-charcoal/10 bg-white p-4">
             <div className="flex items-start justify-between gap-2">
-              {h.hotel ? (
-                <p className="font-semibold">{h.nombre_display || "Hotel del catálogo"}</p>
-              ) : (
-                <input
-                  value={h.nombre_libre}
-                  onChange={(e) => actualizar(i, { nombre_libre: e.target.value })}
-                  placeholder="Nombre del hotel"
-                  className="w-full max-w-xs rounded-lg border border-charcoal/15 px-2.5 py-1.5 text-sm font-semibold outline-none focus:border-steel"
-                />
-              )}
+              <p className="font-semibold">{h.nombre_display || "Hotel del catálogo"}</p>
               <button
                 type="button"
                 onClick={() => quitar(i)}
@@ -348,41 +355,6 @@ function HotelesEditor({
               >
                 <Trash2 className="size-4" />
               </button>
-            </div>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                  Noches
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={h.noches}
-                  onChange={(e) => actualizar(i, { noches: Number(e.target.value) || 1 })}
-                  className="mt-1 w-full rounded-lg border border-charcoal/15 px-2.5 py-1.5 text-sm outline-none focus:border-steel"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                  Tipo de habitación
-                </label>
-                <input
-                  value={h.tipo_habitacion}
-                  onChange={(e) => actualizar(i, { tipo_habitacion: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-charcoal/15 px-2.5 py-1.5 text-sm outline-none focus:border-steel"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                  Plan de alimentación
-                </label>
-                <input
-                  value={h.plan_alimentacion}
-                  onChange={(e) => actualizar(i, { plan_alimentacion: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-charcoal/15 px-2.5 py-1.5 text-sm outline-none focus:border-steel"
-                />
-              </div>
             </div>
 
             <div className="mt-3">
@@ -508,6 +480,55 @@ function VueloCard({
   );
 }
 
+function LineasEditor({
+  lineas,
+  onChange,
+}: {
+  lineas: string[];
+  onChange: (lineas: string[]) => void;
+}) {
+  function actualizar(i: number, value: string) {
+    onChange(lineas.map((l, idx) => (idx === i ? value : l)));
+  }
+
+  function quitar(i: number) {
+    onChange(lineas.filter((_, idx) => idx !== i));
+  }
+
+  function agregar() {
+    onChange([...lineas, ""]);
+  }
+
+  return (
+    <div className="space-y-2">
+      {lineas.map((linea, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            value={linea}
+            onChange={(e) => actualizar(i, e.target.value)}
+            placeholder='ej. "$ 9.600.000 Tarifa sencilla"'
+            className="flex-1 rounded-lg border border-charcoal/15 bg-white px-3 py-1.5 text-sm outline-none focus:border-steel"
+          />
+          <button
+            type="button"
+            onClick={() => quitar(i)}
+            className="text-charcoal/40 hover:text-rose-600"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={agregar}
+        className="flex items-center gap-1.5 rounded-lg border border-dashed border-charcoal/25 px-3 py-1.5 text-sm text-charcoal/60 hover:bg-charcoal/5"
+      >
+        <Plus className="size-3.5" />
+        Agregar línea
+      </button>
+    </div>
+  );
+}
 
 /* ---------- Form principal ---------- */
 
@@ -527,6 +548,11 @@ export default function CotizacionForm({
   const [values, setValues] = useState<CotizacionFormValues>(initial ?? emptyValues());
   const [destinoId, setDestinoId] = useState<number | null>(destinoIdInicial);
 
+  const [modalDestino, setModalDestino] = useState(false);
+  const [modalHotel, setModalHotel] = useState(false);
+  const [savingCatalogo, setSavingCatalogo] = useState(false);
+  const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
+
   function patch(p: Partial<CotizacionFormValues>) {
     setValues((v) => ({ ...v, ...p }));
   }
@@ -541,84 +567,143 @@ export default function CotizacionForm({
 
   const mostrarInversion = values.hoteles.length <= 1;
 
+  async function handleCrearDestino(destinoValues: DestinoFormValues) {
+    setSavingCatalogo(true);
+    setErrorCatalogo(null);
+    try {
+      const created = await api<DestinoContenido>("destinos", {
+        method: "POST",
+        body: JSON.stringify(destinoValues),
+      });
+      patch({ destino: created.nombre });
+      setDestinoId(created.id);
+      setModalDestino(false);
+    } catch (e) {
+      setErrorCatalogo(e instanceof Error ? e.message : "No se pudo crear el destino");
+    } finally {
+      setSavingCatalogo(false);
+    }
+  }
+
+  async function handleCrearHotel(hotelValues: HotelFormValues) {
+    setSavingCatalogo(true);
+    setErrorCatalogo(null);
+    try {
+      const created = await api<HotelPartner>("hoteles", {
+        method: "POST",
+        body: JSON.stringify(hotelValues),
+      });
+      if (created.destino === destinoId) {
+        patch({
+          hoteles: [
+            ...values.hoteles,
+            {
+              hotel: created.id,
+              nombre_libre: "",
+              noches: 1,
+              tipo_habitacion: "",
+              plan_alimentacion: "",
+              datos_importantes: [],
+              precios: [],
+              orden: values.hoteles.length,
+              nombre_display: created.nombre,
+              _key: crypto.randomUUID(),
+            },
+          ],
+        });
+      }
+      setModalHotel(false);
+    } catch (e) {
+      setErrorCatalogo(e instanceof Error ? e.message : "No se pudo crear el hotel");
+    } finally {
+      setSavingCatalogo(false);
+    }
+  }
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(values);
-      }}
-      className="space-y-6"
-    >
-      <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-        <h2 className="font-display text-lg font-semibold">Viaje</h2>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <DestinoField
-            value={values.destino}
-            onSelect={(d) => {
-              patch({ destino: d.nombre });
-              setDestinoId(d.id);
-            }}
-          />
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              Personas
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={values.num_personas}
-              onChange={(e) => patch({ num_personas: Number(e.target.value) || 1 })}
-              className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+    <>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(values);
+        }}
+        className="space-y-6"
+      >
+        <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
+          <h2 className="font-display text-lg font-semibold">Viaje</h2>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-xs uppercase tracking-wide text-charcoal/50">
+                Nombre del cliente
+              </label>
+              <input
+                value={values.nombre_cliente}
+                onChange={(e) => patch({ nombre_cliente: e.target.value })}
+                placeholder="Nombre a nombre de quien va la cotización"
+                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+              />
+            </div>
+            <DestinoField
+              value={values.destino}
+              onChangeText={(destino) => {
+                patch({ destino });
+                setDestinoId(null);
+              }}
+              onSelectCatalogo={(d) => {
+                patch({ destino: d.nombre });
+                setDestinoId(d.id);
+              }}
+              onCrearNuevo={() => setModalDestino(true)}
             />
+
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-charcoal/50">
+                Fecha inicio (opcional)
+              </label>
+              <input
+                type="date"
+                value={values.fecha_inicio}
+                onChange={(e) => patch({ fecha_inicio: e.target.value })}
+                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-charcoal/50">
+                Fecha fin (opcional)
+              </label>
+              <input
+                type="date"
+                value={values.fecha_fin}
+                onChange={(e) => patch({ fecha_fin: e.target.value })}
+                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              Fecha inicio (opcional)
-            </label>
-            <input
-              type="date"
-              value={values.fecha_inicio}
-              onChange={(e) => patch({ fecha_inicio: e.target.value })}
-              className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-            />
-          </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              Fecha fin (opcional)
-            </label>
-            <input
-              type="date"
-              value={values.fecha_fin}
-              onChange={(e) => patch({ fecha_fin: e.target.value })}
-              className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+        </div>
+
+        <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
+          <h2 className="font-display text-lg font-semibold">Hoteles</h2>
+          <div className="mt-3">
+            <HotelesEditor
+              destinoId={destinoId}
+              hoteles={values.hoteles}
+              onChange={(hoteles) => patch({ hoteles })}
+              onCrearNuevo={() => setModalHotel(true)}
             />
           </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-        <h2 className="font-display text-lg font-semibold">Hoteles</h2>
-        <div className="mt-3">
-          <HotelesEditor
-            destinoId={destinoId}
-            hoteles={values.hoteles}
-            onChange={(hoteles) => patch({ hoteles })}
-          />
+        <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
+          <h2 className="font-display text-lg font-semibold">Vuelos</h2>
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <VueloCard tipo="ida" vuelo={vueloIda} onChange={(v) => setVuelo("ida", v)} />
+            <VueloCard tipo="vuelta" vuelo={vueloVuelta} onChange={(v) => setVuelo("vuelta", v)} />
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-        <h2 className="font-display text-lg font-semibold">Vuelos</h2>
-        <div className="mt-3 grid gap-4 lg:grid-cols-2">
-          <VueloCard tipo="ida" vuelo={vueloIda} onChange={(v) => setVuelo("ida", v)} />
-          <VueloCard tipo="vuelta" vuelo={vueloVuelta} onChange={(v) => setVuelo("vuelta", v)} />
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-        <h2 className="font-display text-lg font-semibold">Experiencia</h2>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div>
+        <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
+          <h2 className="font-display text-lg font-semibold">Experiencia</h2>
+          <div className="mt-3">
             <label className="block text-xs uppercase tracking-wide text-charcoal/50">
               Incluye
             </label>
@@ -630,108 +715,72 @@ export default function CotizacionForm({
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              No incluye
-            </label>
-            <div className="mt-1.5">
-              <TagList
-                items={values.no_incluye}
-                onChange={(no_incluye) => patch({ no_incluye })}
-                placeholder="Agregar ítem y Enter…"
-              />
-            </div>
-          </div>
         </div>
-      </div>
 
-      {mostrarInversion && (
-        <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-          <h2 className="font-display text-lg font-semibold">Inversión</h2>
-          <p className="mt-1 text-xs text-charcoal/50">
-            Con 2 o más hoteles, el precio se maneja por hotel (arriba).
-          </p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <div>
+        {mostrarInversion && (
+          <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
+            <h2 className="font-display text-lg font-semibold">Inversión</h2>
+            <p className="mt-1 text-xs text-charcoal/50">
+              Con 2 o más hoteles, el precio se maneja por hotel (arriba).
+            </p>
+            <div className="mt-3">
               <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                Precio por persona
+                Líneas de inversión
               </label>
-              <input
-                inputMode="numeric"
-                value={values.precio_por_persona}
-                onChange={(e) =>
-                  patch({ precio_por_persona: formatMilesInput(e.target.value) })
-                }
-                placeholder="0"
-                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-              />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                Precio total
-              </label>
-              <input
-                inputMode="numeric"
-                value={values.precio_total}
-                onChange={(e) => patch({ precio_total: formatMilesInput(e.target.value) })}
-                placeholder="0"
-                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-                Nota de precio (alternativa a los campos de arriba)
-              </label>
-              <input
-                value={values.precio_nota_total}
-                onChange={(e) => patch({ precio_nota_total: e.target.value })}
-                placeholder='ej. "Desde $2.500.000 por persona"'
-                className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-              />
+              <div className="mt-1.5">
+                <LineasEditor
+                  lineas={values.inversion_lineas}
+                  onChange={(inversion_lineas) => patch({ inversion_lineas })}
+                />
+              </div>
             </div>
           </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center gap-2 rounded-lg bg-charcoal px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-charcoal/90 disabled:opacity-60"
+          >
+            {saving && <Loader2 className="size-4 animate-spin" />}
+            {submitLabel}
+          </button>
         </div>
+      </form>
+
+      {modalDestino && (
+        <Modal title="Nuevo destino" onClose={() => setModalDestino(false)}>
+          {errorCatalogo && (
+            <p className="mb-4 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
+              {errorCatalogo}
+            </p>
+          )}
+          <DestinoForm
+            initial={emptyDestinoValues()}
+            onSubmit={handleCrearDestino}
+            saving={savingCatalogo}
+            submitLabel="Crear y usar en esta cotización"
+          />
+        </Modal>
       )}
 
-      <div className="rounded-xl border border-charcoal/10 bg-white p-4 sm:p-5">
-        <h2 className="font-display text-lg font-semibold">Otros</h2>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              Vigencia
-            </label>
-            <input
-              type="date"
-              value={values.vigencia}
-              onChange={(e) => patch({ vigencia: e.target.value })}
-              className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-              Notas internas
-            </label>
-            <textarea
-              value={values.notas}
-              onChange={(e) => patch({ notas: e.target.value })}
-              rows={3}
-              className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={saving || !values.destino}
-          className="flex items-center gap-2 rounded-lg bg-charcoal px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-charcoal/90 disabled:opacity-60"
-        >
-          {saving && <Loader2 className="size-4 animate-spin" />}
-          {submitLabel}
-        </button>
-      </div>
-    </form>
+      {modalHotel && (
+        <Modal title="Nuevo hotel" onClose={() => setModalHotel(false)}>
+          {errorCatalogo && (
+            <p className="mb-4 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
+              {errorCatalogo}
+            </p>
+          )}
+          <HotelForm
+            initial={emptyHotelValues(destinoId)}
+            onSubmit={handleCrearHotel}
+            saving={savingCatalogo}
+            submitLabel="Crear y usar en esta cotización"
+          />
+        </Modal>
+      )}
+    </>
   );
 }
 

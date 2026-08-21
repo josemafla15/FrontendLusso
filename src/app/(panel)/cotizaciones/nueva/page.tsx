@@ -15,17 +15,14 @@ import type { Cotizacion, LeadDetalle } from "@/lib/types";
 
 function emptyValues(): CotizacionFormValues {
   return {
+    nombre_cliente: "",
     destino: "",
     fecha_inicio: "",
     fecha_fin: "",
     num_personas: 1,
     incluye: [],
     no_incluye: [],
-    precio_total: "",
-    precio_por_persona: "",
-    precio_nota_total: "",
-    vigencia: "",
-    notas: "",
+    inversion_lineas: [],
     hoteles: [],
     vuelos: [],
   };
@@ -86,7 +83,8 @@ function NuevaCotizacionInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Flujo 2: buscador de leads si no viene ?lead=
+  // Buscador de leads: oculto por default, el asesor lo abre si quiere vincular uno
+  const [mostrarBuscador, setMostrarBuscador] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [candidatos, setCandidatos] = useState<LeadDetalle[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -99,9 +97,11 @@ function NuevaCotizacionInner() {
         setLead(l);
         const destinoPrecarga =
           l.destino_interes || l.datos_viaje?.destino || "";
-        if (destinoPrecarga) {
-          setValues((v) => ({ ...v, destino: destinoPrecarga }));
-        }
+        setValues((v) => ({
+          ...v,
+          nombre_cliente: l.nombre,
+          ...(destinoPrecarga ? { destino: destinoPrecarga } : {}),
+        }));
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el lead"))
       .finally(() => setLoadingLead(false));
@@ -122,19 +122,26 @@ function NuevaCotizacionInner() {
     }
   }
 
+  function elegirLead(l: LeadDetalle) {
+    setLead(l);
+    setMostrarBuscador(false);
+    setBusqueda("");
+    setCandidatos([]);
+    setValues((v) => ({ ...v, nombre_cliente: v.nombre_cliente || l.nombre }));
+  }
+
   async function handleSubmit(formValues: CotizacionFormValues) {
-    if (!lead) return;
     setSaving(true);
     setError(null);
     try {
       const created = await api<Cotizacion>("cotizaciones", {
         method: "POST",
-        body: JSON.stringify({ lead: lead.id, ...buildPayload(formValues) }),
+        body: JSON.stringify({ lead: lead?.id ?? null, ...buildPayload(formValues) }),
       });
 
       // Marca el lead como "cotizado" si aún no está en un estado final.
-      // (Asunción: avisame si preferís que esto sea manual)
-      if (!["cotizado", "ganado", "perdido"].includes(lead.estado)) {
+      // Solo aplica si hay un lead vinculado.
+      if (lead && !["cotizado", "ganado", "perdido"].includes(lead.estado)) {
         api(`leads/${lead.id}`, {
           method: "PATCH",
           body: JSON.stringify({ estado: "cotizado" }),
@@ -173,42 +180,66 @@ function NuevaCotizacionInner() {
         </div>
       )}
 
-      {!loadingLead && !lead && (
-        <div className="mt-6 max-w-md">
-          <label className="block text-xs uppercase tracking-wide text-charcoal/50">
-            Buscar lead
-          </label>
-          <input
-            value={busqueda}
-            onChange={(e) => buscarLeads(e.target.value)}
-            placeholder="Nombre o contacto del lead…"
-            className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
-          />
-          {buscando && <Loader2 className="mt-2 size-4 animate-spin text-charcoal/40" />}
-          <div className="mt-2 space-y-1">
-            {candidatos.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setLead(c)}
-                className="block w-full rounded-lg border border-charcoal/10 bg-white px-3 py-2 text-left text-sm hover:bg-steel/10"
-              >
-                {c.nombre} <span className="text-charcoal/50">— {c.contacto}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {!loadingLead && (
+        <>
+          {!lead && (
+            <div className="mt-4">
+              {!mostrarBuscador ? (
+                <button
+                  onClick={() => setMostrarBuscador(true)}
+                  className="text-sm text-charcoal/60 underline hover:text-charcoal"
+                >
+                  Vincular a un lead existente (opcional)
+                </button>
+              ) : (
+                <div className="max-w-md">
+                  <label className="block text-xs uppercase tracking-wide text-charcoal/50">
+                    Buscar lead
+                  </label>
+                  <input
+                    value={busqueda}
+                    onChange={(e) => buscarLeads(e.target.value)}
+                    placeholder="Nombre o contacto del lead…"
+                    className="mt-1.5 w-full rounded-lg border border-charcoal/15 bg-white px-3 py-2 text-sm outline-none focus:border-steel"
+                    autoFocus
+                  />
+                  {buscando && <Loader2 className="mt-2 size-4 animate-spin text-charcoal/40" />}
+                  <div className="mt-2 space-y-1">
+                    {candidatos.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => elegirLead(c)}
+                        className="block w-full rounded-lg border border-charcoal/10 bg-white px-3 py-2 text-left text-sm hover:bg-steel/10"
+                      >
+                        {c.nombre} <span className="text-charcoal/50">— {c.contacto}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMostrarBuscador(false);
+                      setBusqueda("");
+                      setCandidatos([]);
+                    }}
+                    className="mt-2 text-xs text-charcoal/50 underline hover:text-charcoal"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
-      {!loadingLead && lead && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr]">
-          <LeadContextPanel lead={lead} />
-          <CotizacionForm
-            initial={values}
-            onSubmit={handleSubmit}
-            saving={saving}
-            submitLabel="Crear cotización"
-          />
-        </div>
+          <div className={`mt-6 ${lead ? "grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr]" : ""}`}>
+            {lead && <LeadContextPanel lead={lead} />}
+            <CotizacionForm
+              initial={values}
+              onSubmit={handleSubmit}
+              saving={saving}
+              submitLabel="Crear cotización"
+            />
+          </div>
+        </>
       )}
     </div>
   );

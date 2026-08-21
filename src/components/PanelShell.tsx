@@ -6,7 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   CreditCard,
   FileText,
+  Hotel,
   LogOut,
+  MapPin,
   Menu,
   Users,
   X,
@@ -17,6 +19,8 @@ import type { Usuario } from "@/lib/types";
 const NAV = [
   { href: "/leads", label: "Leads", Icon: Users },
   { href: "/cotizaciones", label: "Cotizaciones", Icon: FileText },
+  { href: "/destinos", label: "Destinos", Icon: MapPin },
+  { href: "/hoteles", label: "Hoteles", Icon: Hotel },
   { href: "/pagos", label: "Pagos", Icon: CreditCard },
 ];
 
