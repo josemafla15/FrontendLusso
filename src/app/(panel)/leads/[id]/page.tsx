@@ -211,9 +211,7 @@ function WhatsappDetail({ lead }: DetailProps) {
             {dv.destino || "—"}
           </FichaItem>
           <FichaItem Icon={CalendarRange} label="Fechas">
-            {dv.fecha_inicio || dv.fecha_fin
-              ? [dv.fecha_inicio, dv.fecha_fin].filter(Boolean).join(" → ")
-              : "—"}
+            {dv.fecha_viaje || "—"}
           </FichaItem>
           <FichaItem Icon={Users} label="Personas">
             {dv.num_personas ?? "—"}

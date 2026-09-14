@@ -19,12 +19,15 @@ export interface Usuario {
 }
 
 export interface DatosViaje {
-  destino?: string | null;
-  fecha_inicio?: string | null;
-  fecha_fin?: string | null;
-  num_personas?: number | null;
-  presupuesto?: number | string | null;
-  notas?: string | null;
+  destino?: string;
+  fecha_viaje?: string;
+  num_personas?: number;
+  presupuesto?: string;
+  presupuesto_preguntado?: boolean;
+  telefono_alternativo?: string;
+  telefono_preguntado?: boolean;
+  telefono_aclarado?: boolean;
+  notas?: string;
 }
 
 export interface Mensaje {
