@@ -212,7 +212,7 @@ function WhatsappDetail({ lead }: DetailProps) {
           </FichaItem>
           <FichaItem Icon={CalendarRange} label="Fechas">
             {dv.fecha_inicio || dv.fecha_fin
-              ? `${formatDate(dv.fecha_inicio)} → ${formatDate(dv.fecha_fin)}`
+              ? [dv.fecha_inicio, dv.fecha_fin].filter(Boolean).join(" → ")
               : "—"}
           </FichaItem>
           <FichaItem Icon={Users} label="Personas">
