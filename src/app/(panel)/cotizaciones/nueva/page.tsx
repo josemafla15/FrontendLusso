@@ -40,7 +40,7 @@ function LeadContextPanel({ lead }: { lead: LeadDetalle }) {
           <p><span className="text-charcoal/50">Destino:</span> {dv.destino || "—"}</p>
           <p>
             <span className="text-charcoal/50">Fechas:</span>{" "}
-            {dv.fecha_inicio ? `${formatDate(dv.fecha_inicio)} → ${formatDate(dv.fecha_fin)}` : "—"}
+            {dv.fecha_viaje || "—"}
           </p>
           <p><span className="text-charcoal/50">Personas:</span> {dv.num_personas ?? "—"}</p>
           <p><span className="text-charcoal/50">Presupuesto:</span> {formatMoney(dv.presupuesto)}</p>
